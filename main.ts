@@ -50,7 +50,7 @@ async function startHttp(): Promise<void> {
   };
 
   // Stateless: a fresh McpServer per request, all sharing the one browser.
-  app.all(`${basePath}/mcp`, requireAuth, async (req, res) => {
+  app.post(`${basePath}/mcp`, requireAuth, async (req, res) => {
     const server = createServer();
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on("close", () => {
@@ -70,6 +70,17 @@ async function startHttp(): Promise<void> {
         });
       }
     }
+  });
+
+  // No sessions means no server-initiated stream to GET and nothing to DELETE.
+  // Saying so (405) stops clients from holding open an SSE stream that never
+  // carries anything and that a gateway would cut at its request timeout.
+  app.all(`${basePath}/mcp`, requireAuth, (_req, res) => {
+    res.status(405).set("Allow", "POST").json({
+      jsonrpc: "2.0",
+      error: { code: -32000, message: "Method not allowed." },
+      id: null,
+    });
   });
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
