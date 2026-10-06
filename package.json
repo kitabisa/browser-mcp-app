@@ -8,6 +8,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "cross-env INPUT=mcp-app.html vite build",
+    "build:server": "tsc -p tsconfig.server.json",
     "watch": "cross-env INPUT=mcp-app.html NODE_ENV=development vite build --watch",
     "serve": "tsx main.ts",
     "serve:stdio": "tsx main.ts --stdio",

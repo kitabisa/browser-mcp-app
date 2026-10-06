@@ -1,0 +1,81 @@
+type: server
+
+server:
+  # The browser is one in-process page shared by every request (browser.ts), so
+  # this must stay a single pod: a second replica would be a second, different
+  # browser and the live view would flip between them.
+  replicas: 1
+  rollingUpdate:
+    # Stop the old pod before starting the new one — never two browsers at once.
+    maxSurge: 0
+    maxUnavailable: 1
+
+  # main.ts closes Chromium on SIGTERM before exiting.
+  gracePeriod: 30
+
+  probes:
+    startup:
+      path: /health
+    readiness:
+      path: /health
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+
+keda:
+  # Pin to exactly one pod: no scale-to-zero (it would drop the browser session)
+  # and no scale-out (see server.replicas).
+  minReplicas: 1
+  maxReplicas: 1
+  scalers:
+    http:
+      enabled: false
+    cpu:
+      enabled: false
+    memory:
+      enabled: false
+
+pdb:
+  enabled: false
+
+routes:
+  http:
+    # Navigations wait up to 30s (browser.ts), longer than the chart's 20s default.
+    timeouts:
+      backendRequest: 60s
+      request: 65s
+
+raw:
+  enabled: true
+  resources:
+    # Backstop for ALLOWED_DOMAINS: whatever the browser is pointed at, keep it
+    # off the cluster and VPC networks and the cloud metadata endpoint.
+    - apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: browser-mcp-app-egress
+      spec:
+        podSelector:
+          matchLabels:
+            app.kitabisa.com/name: browser-mcp-app
+        policyTypes:
+          - Egress
+        egress:
+          - ports:
+              - protocol: UDP
+                port: 53
+              - protocol: TCP
+                port: 53
+          - to:
+              - ipBlock:
+                  cidr: 0.0.0.0/0
+                  except:
+                    - 10.0.0.0/8
+                    - 172.16.0.0/12
+                    - 192.168.0.0/16
+                    - 100.64.0.0/10
+                    - 169.254.0.0/16

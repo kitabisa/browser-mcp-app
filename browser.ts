@@ -13,6 +13,76 @@ const HEADLESS = /^(1|true|yes|on)$/i.test(process.env.HEADLESS ?? "");
 const VIEWPORT = { width: 1280, height: 800 };
 const JPEG_QUALITY = Number(process.env.SCREENSHOT_QUALITY ?? "60");
 
+// Optional domain allowlist, e.g. "kitabisa.com,*.kitabisa.com". An entry
+// matches that exact host; a "*." prefix matches any subdomain (but not the
+// apex). Unset or empty means every site is allowed.
+const ALLOWED_DOMAINS = (process.env.ALLOWED_DOMAINS ?? "")
+  .split(",")
+  .map((d) => d.trim().toLowerCase().replace(/\.$/, ""))
+  .filter(Boolean);
+
+function hostAllowed(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, "");
+  return ALLOWED_DOMAINS.some((d) =>
+    d.startsWith("*.") ? host.endsWith(d.slice(1)) : host === d,
+  );
+}
+
+/** Whether the browser may show this URL as a page (top-level or in a frame). */
+function urlAllowed(url: string): boolean {
+  if (ALLOWED_DOMAINS.length === 0) return true;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol === "about:") return true;
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  return hostAllowed(parsed.hostname);
+}
+
+function blockedMessage(url: string): string {
+  return `${url} is not on the allowed domain list (${ALLOWED_DOMAINS.join(", ")}).`;
+}
+
+// URL of the most recent page that was thrown out for leaving the allowlist.
+let lastBlocked: string | null = null;
+
+/**
+ * Enforce the allowlist on a context: every top-level navigation — typed URLs,
+ * link clicks, form posts, popups — must target an allowed host. What an
+ * allowed page embeds (images, scripts, XHR, iframes such as captcha or
+ * payment widgets) is left alone so those pages keep working.
+ */
+async function restrictNavigation(ctx: BrowserContext): Promise<void> {
+  if (ALLOWED_DOMAINS.length === 0) return;
+  await ctx.route("**/*", (route) => {
+    const request = route.request();
+    if (
+      request.isNavigationRequest() &&
+      request.frame().parentFrame() === null &&
+      !urlAllowed(request.url())
+    ) {
+      lastBlocked = request.url();
+      return route.abort("blockedbyclient");
+    }
+    return route.fallback();
+  });
+  // Routes don't see the hops of a server redirect, so also check where the
+  // top-level page actually landed and leave if it is somewhere else.
+  ctx.on("page", (p) => {
+    p.on("framenavigated", (frame) => {
+      const url = frame.url();
+      // chrome-error:// is the page Chromium shows for a request aborted above.
+      if (frame !== p.mainFrame() || urlAllowed(url) || url.startsWith("chrome-error:")) return;
+      lastBlocked = url;
+      console.error(`Blocked: ${blockedMessage(url)}`);
+      p.goto("about:blank").catch(() => {});
+    });
+  });
+}
+
 let browser: Browser | null = null;
 let context: BrowserContext | null = null;
 let page: Page | null = null;
@@ -38,6 +108,7 @@ async function ensurePage(): Promise<Page> {
     context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
     context.setDefaultTimeout(15_000);
     context.setDefaultNavigationTimeout(30_000);
+    await restrictNavigation(context);
   }
   if (!page || page.isClosed()) {
     page = await context.newPage();
@@ -81,11 +152,22 @@ function normalizeUrl(url: string): string {
 export const browserManager = {
   viewport: VIEWPORT,
   headless: HEADLESS,
+  allowedDomains: ALLOWED_DOMAINS,
 
   navigate(url: string): Promise<PageInfo> {
     return withLock(async () => {
       const p = await ensurePage();
-      await p.goto(normalizeUrl(url), { waitUntil: "domcontentloaded" });
+      const target = normalizeUrl(url);
+      if (!urlAllowed(target)) throw new Error(blockedMessage(target));
+      lastBlocked = null;
+      try {
+        await p.goto(target, { waitUntil: "domcontentloaded" });
+      } catch (e) {
+        // A redirect off the allowlist surfaces as an aborted/interrupted goto.
+        if (lastBlocked) throw new Error(blockedMessage(lastBlocked));
+        throw e;
+      }
+      if (lastBlocked) throw new Error(blockedMessage(lastBlocked));
       return info(p);
     });
   },
