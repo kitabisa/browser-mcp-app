@@ -13,10 +13,8 @@ releases:
     version: ~0.5.1
     values:
       - {{ requiredEnv "ENV" }}/config.yaml
-    # To require a bearer token on /mcp, add a sops-encrypted
-    # {{ requiredEnv "ENV" }}/secret.yaml (see README) and uncomment:
-    # secrets:
-    #   - {{ requiredEnv "ENV" }}/secret.yaml
+    secrets:
+      - {{ requiredEnv "ENV" }}/secret.yaml
 
   - name: {{ requiredEnv "APP_NAME" }}-server-{{ requiredEnv "ENV" }}
     namespace: {{ requiredEnv "APP_NAME" }}

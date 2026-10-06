@@ -1,0 +1,12 @@
+creation_rules:
+  - path_regex: .infra/helm/dev/*
+    gcp_kms: projects/kitabisa-stg/locations/global/keyRings/sops/cryptoKeys/sops-key
+
+  - path_regex: .infra/helm/stg/*
+    gcp_kms: projects/kitabisa-stg/locations/global/keyRings/sops/cryptoKeys/sops-key
+
+  - path_regex: .infra/helm/prod-test/*
+    gcp_kms: projects/kitabisa/locations/global/keyRings/sops/cryptoKeys/sops-key
+
+  - path_regex: .infra/helm/prod/*
+    gcp_kms: projects/kitabisa/locations/global/keyRings/sops/cryptoKeys/sops-key

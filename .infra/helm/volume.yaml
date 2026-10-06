@@ -3,10 +3,10 @@ configMaps:
   envFrom:
     - "browser-mcp-app-config-{{ .Values.meta.env }}"
 
-# With {env}/secret.yaml enabled in helmfile.yaml, also load MCP_AUTH_TOKEN:
-# secrets:
-#   envFrom:
-#     - "browser-mcp-app-config-{{ .Values.meta.env }}"
+# MCP_AUTH_TOKEN from the config release's Secret ({env}/secret.yaml).
+secrets:
+  envFrom:
+    - "browser-mcp-app-config-{{ .Values.meta.env }}"
 
 # The root filesystem is read-only; Chromium needs a writable /tmp (profile,
 # caches) and far more /dev/shm than the 64Mi container default.

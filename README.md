@@ -49,7 +49,7 @@ at the stdio entry:
 | `PORT` | `3001` | HTTP port. |
 | `SCREENSHOT_QUALITY` | `60` | JPEG quality for the live view. |
 | `BASE_PATH` | unset | Path prefix for the HTTP endpoint, e.g. `/browser-mcp-app` → `/browser-mcp-app/mcp`. |
-| `MCP_AUTH_TOKEN` | unset → no auth | When set, `/mcp` requires `Authorization: Bearer <token>`. |
+| `MCP_AUTH_TOKEN` | unset → no auth | When set, `/mcp` requires the header `Authorization: Bearer <token>` or `X-API-Key: <token>`. |
 | `ALLOWED_DOMAINS` | unset → any site | Comma-separated sites the browser may open, e.g. `kitabisa.com,*.kitabisa.com`. |
 
 ### Domain allowlist
@@ -80,14 +80,17 @@ The server is served on the private gateway at
 To change the allowed sites, edit `ALLOWED_DOMAINS` in `.infra/helm/prod/config.yaml`
 and merge; the pod restarts with the new list.
 
-To require a bearer token, create `.infra/helm/prod/secret.yaml`, encrypt it with
-`sops`, and uncomment the two `secrets` blocks in `helmfile.yaml` and `volume.yaml`:
+Access to `/mcp` requires a static header carrying the token stored (sops-encrypted)
+in `.infra/helm/prod/secret.yaml`. Either form is accepted:
 
-```yaml
-secret:
-  enabled: true
-  data:
-    MCP_AUTH_TOKEN: <openssl rand -hex 32>
+```
+Authorization: Bearer <token>
+X-API-Key: <token>
+```
+
+```bash
+sops -d .infra/helm/prod/secret.yaml    # read the current token
+sops .infra/helm/prod/secret.yaml       # rotate: edit MCP_AUTH_TOKEN, then merge
 ```
 
 Things the values set on purpose:

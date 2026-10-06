@@ -29,9 +29,19 @@ async function startHttp(): Promise<void> {
   // anything reachable beyond localhost should set MCP_AUTH_TOKEN.
   const requireAuth: express.RequestHandler = (req, res, next) => {
     if (!authToken || req.method === "OPTIONS") return next();
-    const given = Buffer.from(req.headers.authorization ?? "");
-    const expected = Buffer.from(`Bearer ${authToken}`);
-    if (given.length === expected.length && timingSafeEqual(given, expected)) return next();
+    // Either static header works, whichever the MCP host can be configured to send:
+    //   Authorization: Bearer <token>   or   X-API-Key: <token>
+    const matches = (given: string | string[] | undefined, expected: string) => {
+      const a = Buffer.from(typeof given === "string" ? given : "");
+      const b = Buffer.from(expected);
+      return a.length === b.length && timingSafeEqual(a, b);
+    };
+    if (
+      matches(req.headers.authorization, `Bearer ${authToken}`) ||
+      matches(req.headers["x-api-key"], authToken)
+    ) {
+      return next();
+    }
     res.status(401).json({
       jsonrpc: "2.0",
       error: { code: -32001, message: "Unauthorized" },
