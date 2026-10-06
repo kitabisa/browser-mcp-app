@@ -1,0 +1,17 @@
+name: browser-mcp-app
+id: ari:cloud:compass:ae9ec5f8-e892-4eda-9314-548dfad7b7fb:component/2b2df9d4-8719-41e2-ab56-c6f02232532a/dc73c50f-dfc5-45ad-adfc-dc7a2e44c5af
+description: null
+configVersion: 1
+typeId: SERVICE
+fields:
+  tier: 4
+links:
+  - name: null
+    type: REPOSITORY
+    url: https://github.com/kitabisa/browser-mcp-app
+relationships:
+  DEPENDS_ON: []
+labels:
+  - source:github
+  - synced-with-jsm
+customFields: null
