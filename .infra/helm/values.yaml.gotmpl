@@ -1,0 +1,13 @@
+meta:
+  name: {{ requiredEnv "APP_NAME" }}
+  env: {{ requiredEnv "ENV_NAME" }}
+  version: {{ requiredEnv "VERSION" | quote }}
+  source: {{ requiredEnv "GIT_SOURCE" }}
+  squad: {{ requiredEnv "SQUAD" }}
+  business: {{ requiredEnv "BUSINESS" }}
+  platform: {{ requiredEnv "PLATFORM" }}
+  entity: {{ requiredEnv "ENTITY" }}
+
+image:
+  repository: {{ requiredEnv "DOCKER_REPOSITORY" }}/{{ requiredEnv "APP_NAME" }}
+  tag: {{ requiredEnv "VERSION" }}-{{ requiredEnv "ENV_NAME" }}

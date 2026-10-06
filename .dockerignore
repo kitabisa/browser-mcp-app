@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.claude
+.code-review-graph
+.infra
+.github
+helmfile.yaml
+Makefile
+*.md
+.env
+.env.*

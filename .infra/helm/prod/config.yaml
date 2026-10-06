@@ -1,0 +1,10 @@
+config:
+  enabled: true
+
+  data:
+    # Sites the browser may open. "*.x" matches any subdomain of x, not x itself.
+    ALLOWED_DOMAINS: "kitabisa.com,*.kitabisa.com,kitabisa.xyz,*.kitabisa.xyz"
+    # The standard route forwards /browser-mcp-app/* without stripping the prefix.
+    BASE_PATH: /browser-mcp-app
+    # Root filesystem is read-only; Chromium keeps its profile and caches here.
+    HOME: /tmp

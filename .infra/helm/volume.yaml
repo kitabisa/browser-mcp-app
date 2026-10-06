@@ -1,0 +1,25 @@
+# Environment (ALLOWED_DOMAINS, ...) from the config release.
+configMaps:
+  envFrom:
+    - "browser-mcp-app-config-{{ .Values.meta.env }}"
+
+# With {env}/secret.yaml enabled in helmfile.yaml, also load MCP_AUTH_TOKEN:
+# secrets:
+#   envFrom:
+#     - "browser-mcp-app-config-{{ .Values.meta.env }}"
+
+# The root filesystem is read-only; Chromium needs a writable /tmp (profile,
+# caches) and far more /dev/shm than the 64Mi container default.
+extraVolumes:
+  - name: tmp
+    emptyDir: {}
+  - name: dshm
+    emptyDir:
+      medium: Memory
+      sizeLimit: 1Gi
+
+extraVolumeMounts:
+  - name: tmp
+    mountPath: /tmp
+  - name: dshm
+    mountPath: /dev/shm
