@@ -1,0 +1,33 @@
+repositories:
+  - name: kitabisa
+    url: {{ requiredEnv "CHARTS_REPOSITORY" }}
+    oci: true
+
+releases:
+  - name: {{ requiredEnv "APP_NAME" }}-config-{{ requiredEnv "ENV" }}
+    namespace: {{ requiredEnv "APP_NAME" }}
+    labels:
+      tier: config
+      type: main
+    chart: kitabisa/config
+    version: ~0.5.1
+    values:
+      - {{ requiredEnv "ENV" }}/config.yaml
+    # To require a bearer token on /mcp, add a sops-encrypted
+    # {{ requiredEnv "ENV" }}/secret.yaml (see README) and uncomment:
+    # secrets:
+    #   - {{ requiredEnv "ENV" }}/secret.yaml
+
+  - name: {{ requiredEnv "APP_NAME" }}-server-{{ requiredEnv "ENV" }}
+    namespace: {{ requiredEnv "APP_NAME" }}
+    labels:
+      tier: app
+      type: main
+    chart: kitabisa/app
+    version: ~2.3.0-alpha
+    values:
+      - {{ requiredEnv "ENV" }}/server.yaml
+      - volume.yaml
+      - values.yaml.gotmpl
+    needs:
+      - {{ requiredEnv "APP_NAME" }}/{{ requiredEnv "APP_NAME" }}-config-{{ requiredEnv "ENV" }}

@@ -1,0 +1,79 @@
+name: Build-Push-Deploy Prod
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy (overrides push branch)"
+        required: false
+        type: string
+
+env:
+  ENV: prod
+  ENV_NAME: prod
+  BRANCH: ${{ inputs.branch || github.ref_name }}
+  DOCKER_REPOSITORY: ${{ secrets.ARTIFACT_REGISTRY_HOST }}/${{ secrets.GCP_PROJECT_ID_PROD }}/images
+  CHARTS_REPOSITORY:  ${{ secrets.ARTIFACT_REGISTRY_HOST }}/${{ secrets.GCP_PROJECT_ID_INFRA }}/charts
+  GIT_SOURCE: ${{ github.event.repository.name }}
+
+jobs:
+  build:
+    runs-on: ktbs-build-deploy-runner
+    concurrency:
+      group: build-${{ github.ref_name }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH }}
+          fetch-depth: 0
+
+      - name: Setuptools infra
+        uses: kitabisa/composite-actions/infra/tools/setuptools@v2
+        with:
+          setup_buildx: true
+
+      - name: Gcloud authentication
+        uses: kitabisa/composite-actions/infra/tools/gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID_PROD }}
+          artifact_registry_host: ${{ secrets.ARTIFACT_REGISTRY_HOST }}
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+          gke_creds: false
+
+      - name: Package the image
+        run: |
+          make package
+
+  deploy:
+    needs: build
+    runs-on: ktbs-build-deploy-runner
+    concurrency:
+      group: deploy-${{ github.ref_name }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH }}
+          # `make deploy` derives the image tag from `git describe`, as `make package` did.
+          fetch-depth: 0
+
+      - name: Gcloud authentication
+        uses: kitabisa/composite-actions/infra/tools/gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID_PROD }}
+          artifact_registry_host: ${{ secrets.ARTIFACT_REGISTRY_HOST }}
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+          gke_cluster_name: ${{ secrets.GKE_CLUSTER_PROD }}
+          gke_cluster_zone: ${{ secrets.GKE_ZONE_PROD }}
+
+      - name: Deploy via Helmfile
+        run: |-
+          make deploy

@@ -5,22 +5,42 @@
  *
  *   tsx main.ts            # HTTP on :3001
  *   tsx main.ts --stdio    # stdio transport
+ *   node dist/main.js      # compiled build (npm run build:server), used in the image
  */
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import cors from "cors";
 import express from "express";
+import { timingSafeEqual } from "node:crypto";
 import { browserManager } from "./browser.js";
 import { createServer } from "./server.js";
 
 async function startHttp(): Promise<void> {
   const port = parseInt(process.env.PORT ?? "3001", 10);
+  // Path prefix for when a gateway routes to us without stripping it,
+  // e.g. BASE_PATH=/browser-mcp-app serves the endpoint at /browser-mcp-app/mcp.
+  const basePath = (process.env.BASE_PATH ?? "").replace(/\/+$/, "");
+  const authToken = process.env.MCP_AUTH_TOKEN;
   const app = express();
   app.use(cors());
   app.use(express.json({ limit: "8mb" }));
 
+  // Optional shared-secret gate: this server hands out a real browser, so
+  // anything reachable beyond localhost should set MCP_AUTH_TOKEN.
+  const requireAuth: express.RequestHandler = (req, res, next) => {
+    if (!authToken || req.method === "OPTIONS") return next();
+    const given = Buffer.from(req.headers.authorization ?? "");
+    const expected = Buffer.from(`Bearer ${authToken}`);
+    if (given.length === expected.length && timingSafeEqual(given, expected)) return next();
+    res.status(401).json({
+      jsonrpc: "2.0",
+      error: { code: -32001, message: "Unauthorized" },
+      id: null,
+    });
+  };
+
   // Stateless: a fresh McpServer per request, all sharing the one browser.
-  app.all("/mcp", async (req, res) => {
+  app.all(`${basePath}/mcp`, requireAuth, async (req, res) => {
     const server = createServer();
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on("close", () => {
@@ -46,7 +66,7 @@ async function startHttp(): Promise<void> {
 
   const httpServer = app.listen(port, () => {
     console.log(
-      `Playwright MCP App on http://localhost:${port}/mcp  (headless=${browserManager.headless})`,
+      `Playwright MCP App on http://localhost:${port}${basePath}/mcp  (headless=${browserManager.headless}, auth=${authToken ? "on" : "off"}, allowed=${browserManager.allowedDomains.join(",") || "any"})`,
     );
   });
 
