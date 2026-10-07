@@ -48,6 +48,16 @@ routes:
     timeouts:
       backendRequest: 60s
       request: 65s
+  mix:
+    enabled: true
+
+    web:
+      public:
+        enabled: true
+
+    gateway:
+      public:
+        enabled: true
 
 raw:
   enabled: true
